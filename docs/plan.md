@@ -4,11 +4,11 @@
 
 ## 架构概览
 
-系统采用前后端分离：微信小程序（原生 WXML/WXSS/JS）负责展示与交互，Spring Boot 后端提供 REST API，MySQL 持久化，本地/对象存储保存图片。小程序通过 `wx.request` 调用后端，鉴权基于 `wx.login` code 换取的 JWT（开发期可用 Mock 登录兜底）。后端分三层：Controller → Service → Mapper（MyBatis），Service 内以事务保证商品锁定与钱包冻结的原子性。订单与商品状态联动、钱包流水与收藏等通过数据库唯一索引与事务约束保障一致性，协商与留言采用短轮询，无需 WebSocket。
+系统采用前后端分离：微信小程序（原生 WXML/WXSS/JS + TypeScript）负责展示与交互，Spring Boot 4 + JDK 21 + Gradle 8 (Groovy DSL) 后端提供 REST API，MySQL 8 持久化，微信云存储保存图片（后端转发换 HTTPS URL 落库）。小程序通过 `wx.request` 调用后端，鉴权基于 `wx.login` code 换取的 JWT（开发期可用 Mock 登录兜底，登录页"演示账号"一键选小白 / 小红 / 小黑）。后端分三层：Controller → Service → Mapper（MyBatis-Plus），Service 内以事务保证商品锁定与钱包冻结的原子性。订单与商品状态联动、钱包流水与收藏等通过数据库唯一索引与事务约束保障一致性，协商与留言采用短轮询，无需 WebSocket。
 
 - 小程序端：首页/搜索/详情/发布/订单/协商/收藏/个人中心 8 个页面组，封装 `request` 与 `auth` 工具
 - 后端服务：认证、用户、商品、订单、钱包、收藏、留言/协商、评价、个人中心聚合 9 个逻辑域，共享鉴权拦截器与统一异常处理
-- 存储：MySQL 单库 8 张主表，图片存对象存储并以 URL 落库
+- 存储：MySQL 单库 9 张主表（8 张业务表 + 1 张可选的 file_meta 文件元数据表，见文件模块设计），图片由 `POST /api/files/upload` 接口接收上传并换取 HTTPS URL 落库（具体存储后端选型见 [`tech-stack.md` §四](tech-stack.md)）
 
 ### Spec 覆盖映射
 <!-- review-fix: ISSUE-1 -->
@@ -163,7 +163,7 @@
 - POST /api/files/upload Header Authorization multipart {file: binary 单张 ≤5MB} → 201 {url: String}；400 文件空/超限
 - GET /api/files/{id} → 200 {url}；404 不存在
 - DELETE /api/files/{id} Header Authorization → 204；403 非上传者
-**依赖：** 对象存储 SDK（本地或云），FileMeta 表（可选）
+**依赖：** 微信云存储 SDK（[`tech-stack.md` §四](tech-stack.md) 锁定的具体实现）；`FileMeta` 表（scaffold 阶段不建，演进时按需添加——MVP 阶段依赖图片 URL 反查 `Item.images`，删除权限在 Item 维度校验）
 <!-- review-fix: ISSUE-6 -->
 
 ### 个人中心聚合
@@ -199,7 +199,7 @@
 │   ├── 0003-轮询留言替代实时IM.md        — 实时性决策
 │   └── 0004-Java后端与无管理后台.md      — 技术栈与治理决策
 ├── backend/
-│   ├── pom.xml                         — Maven 依赖与构建
+│   ├── build.gradle                    — Gradle 依赖与构建
 │   ├── src/main/java/com/campus/market/
 │   │   ├── MarketApplication.java       — 启动类
 │   │   ├── config/
@@ -249,23 +249,23 @@
 │   │   │   └── ReviewMapper.java       — 评价表访问
 │   │   └── file/
 │   │       ├── FileController.java     — 上传/查询/删除
-│   │       ├── StorageService.java     — 上传/获取/删除/列表
-│   │       └── FileMetaMapper.java     — 文件元数据（可选）
+│   │       ├── WechatCloudStorageService.java — 微信云存储 SDK 封装
+│   │       └── FileMetaMapper.java     — 文件元数据（scaffold 阶段不建，演进时按需添加）
 │   └── src/main/resources/
 │       ├── application.yml             — 数据源与存储配置
 │       ├── db/schema.sql               — 8 张表建表语句
 │       ├── db/data.sql                 — 分类与示例数据
 │       └── mapper/
-│           ├── UserMapper.xml          — 用户 SQL
-│           ├── ItemMapper.xml          — 商品筛选与锁
-│           ├── OrderMapper.xml         — 订单查询
-│           ├── WalletMapper.xml        — 钱包更新
+│           ├── UserMapper.xml          — 用户复杂查询（简单 CRUD 走 MyBatis-Plus BaseMapper）
+│           ├── ItemMapper.xml          — 商品筛选与 SELECT ... FOR UPDATE 行锁
+│           ├── OrderMapper.xml         — 订单联查
+│           ├── WalletMapper.xml        — 钱包事务更新（冻结 / 解冻 / 结算）
 │           ├── WalletFlowMapper.xml    — 流水写入
-│           ├── FavoriteMapper.xml      — 收藏联查
+│           ├── FavoriteMapper.xml      — 收藏联查商品状态
 │           ├── CommentMapper.xml       — 留言查询
-│           ├── OrderMessageMapper.xml  — 协商查询
-│           ├── ReviewMapper.xml        — 评价查询
-│           └── FileMetaMapper.xml      — 文件元数据
+│           ├── OrderMessageMapper.xml  — 协商 since 增量查询
+│           ├── ReviewMapper.xml        — 评价联查
+│           └── FileMetaMapper.xml      — 文件元数据（scaffold 阶段不建，演进时按需添加）
 └── miniprogram/
     ├── app.js                          — 全局配置与鉴权初始化
     ├── app.json                        — 页面路由
@@ -294,9 +294,9 @@
 
 | 决策点 | 选择 | 理由 | 被否决备选 |
 |--------|------|------|------------|
-| 后端框架 | Spring Boot 3 + MyBatis + MySQL 8 | 团队熟悉 Java，生态与校内评审一致，MyBatis 对单表与事务控制更直观 | Node.js/云开发：需额外学习且校内资料少 |
-| 鉴权 | JWT + wx.login code2Session，开发期 Mock 登录 | 真实微信登录需 AppSecret 且个人小程序受限，Mock 保障任何网络可演示 | 纯 Mock 无微信：答辩无法证明可对接真实微信 |
-| 图片存储 | 对象存储 URL 落库，发布时传 URL 列表 | 与本地存储接口一致，后续可零成本切云存储，满足不限制张数需求 | 本地文件系统：部署迁移成本高且小程序外网访问受限 |
+| 后端框架 | **Spring Boot 4 + JDK 21 LTS + Gradle 8 (Groovy DSL) + MyBatis-Plus 3.5.9+ + MySQL 8.0 LTS** | 团队熟悉 Java，生态与校内评审一致；MyBatis-Plus 减少 CRUD 样板；JDK 21 虚拟线程作为未来性能 buffer；Gradle Groovy DSL 与 plan.md 原 Maven 风格有差异但社区资料多 | Node.js/云开发：需额外学习且校内资料少 |
+| 鉴权 | **JJWT（io.jsonwebtoken:jjwt）+ 自写 JwtInterceptor + `WebMvcConfigurer` 白名单**，wx.login code2Session，开发期 Mock 登录（登录页"演示账号"按钮一键选小白 / 小红 / 小黑） | 不引入 Spring Security，砍掉 60% 依赖体积；真实微信登录需 AppSecret 且个人小程序受限，Mock 保障任何网络可演示 | 纯 Mock 无微信：答辩无法证明可对接真实微信；Spring Security：plan.md 8 模块接口数量有限，配置复杂，杀鸡用牛刀 |
+| 图片存储 | **微信云存储 + 后端转发换 HTTPS URL 落库**，发布时传 URL 列表 | 个人云开发免费 5GB 配额，零运维；前端拿到永久 HTTPS 直链渲染稳定；接口契约不变，未来可零成本切 MinIO / 阿里 OSS / 腾讯 COS | 本地文件系统：部署迁移成本高且小程序外网访问受限；通用对象存储：需额外服务或账号，演示网络一变图就加载不出 |
 | 搜索 | MySQL LIKE + 复合索引（category, condition, status, createdAt） | 1 万条内性能足够，无需引入 ES 运维成本 | Elasticsearch：期末运维与分词配置过重 |
 | 并发控制 | 事务内 SELECT ... FOR UPDATE 锁定 Item 行 | 保障一物一单不超卖，实现简单且与 MySQL 兼容 | 乐观锁版本号：需重试逻辑且对二手低并发收益有限 |
 | 实时性 | 30 秒轮询 + 下拉刷新 | 无需 WebSocket 服务，满足约时间地点需求，接口可平滑升级 | WebSocket：需额外服务与断线重连，期末不稳定 |
