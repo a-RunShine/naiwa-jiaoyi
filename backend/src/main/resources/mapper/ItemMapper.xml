@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campus.market.item.mapper.ItemMapper">
+
+    <select id="queryItems" resultType="com.campus.market.item.entity.Item">
+        SELECT * FROM item
+        <where>
+            <if test="q.getStatus() != null"> AND status = #{q.getStatus()} </if>
+            <if test="q.getSellerId() != null"> AND seller_id = #{q.getSellerId()} </if>
+            <if test="q.getCategory() != null"> AND category = #{q.getCategory()} </if>
+            <if test="q.getCondition() != null"> AND `condition` = #{q.getCondition()} </if>
+            <if test="q.getTradeMethod() != null">
+                AND (trade_method = #{q.getTradeMethod()} OR trade_method = 'BOTH')
+            </if>
+            <if test="q.getMinPrice() != null"> AND price &gt;= #{q.getMinPrice()} </if>
+            <if test="q.getMaxPrice() != null"> AND price &lt;= #{q.getMaxPrice()} </if>
+            <if test="q.getKeyword() != null and q.getKeyword() != ''">
+                AND (title LIKE CONCAT('%', #{q.getKeyword()}, '%')
+                  OR description LIKE CONCAT('%', #{q.getKeyword()}, '%'))
+            </if>
+        </where>
+        <choose>
+            <when test="q.getSort() == 'price_asc'">  ORDER BY price ASC,  id DESC </when>
+            <when test="q.getSort() == 'price_desc'"> ORDER BY price DESC, id DESC </when>
+            <otherwise>                                  ORDER BY created_at DESC, id DESC </otherwise>
+        </choose>
+    </select>
+
+</mapper>

@@ -1,0 +1,57 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.8'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.campus'
+version = '0.1.0'
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Web (RestClient 内置)
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // ORM (MyBatis-Plus 官方 SB4 starter)
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'com.baomidou:mybatis-plus-spring-boot4-starter:3.5.17'
+    // 3.5.17 把分页插件拆到了独立模块
+    implementation 'com.baomidou:mybatis-plus-jsqlparser:3.5.17'
+
+    // 数据库驱动
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // JWT 鉴权
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.7'
+    runtimeOnly  'io.jsonwebtoken:jjwt-impl:0.12.7'
+    runtimeOnly  'io.jsonwebtoken:jjwt-jackson:0.12.7'
+
+    // 接口文档
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
+
+    // 工具
+    implementation 'cn.hutool:hutool-core:5.8.32'
+
+    // 测试
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // SB4 把 @WebMvcTest 拆到这里
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly  'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.named('bootJar') {
+    archiveFileName = 'naiwa-market.jar'
+}

@@ -31,6 +31,9 @@ miniprogram/types/api.d.ts.bak
 # Docker
 .docker/
 
+# 上传文件(本地存储运行时产物)
+backend/uploads/
+
 # 日志
 *.log
 logs/

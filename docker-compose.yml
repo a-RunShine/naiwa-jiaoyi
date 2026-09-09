@@ -1,0 +1,61 @@
+version: '3.8'
+
+# 奶娃二手交易 — 本地一键部署
+# 用法：
+#   docker compose up -d mysql        # 只起 MySQL（后端本地跑用 localhost 连）
+#   docker compose up -d --build      # 起 MySQL + backend 两个容器
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: naiwa-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: naiwa_root
+      MYSQL_DATABASE: naiwa_market
+      MYSQL_USER: naiwa
+      MYSQL_PASSWORD: naiwa_dev
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 首次启动自动执行（按文件名顺序）
+      - ./backend/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./backend/src/main/resources/db/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=caching_sha2_password
+      - --default-time-zone=+08:00
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pnaiwa_root"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: naiwa-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # 容器内访问同网络 mysql 服务，DNS 解析为 "mysql"
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/naiwa_market?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: naiwa
+      SPRING_DATASOURCE_PASSWORD: naiwa_dev
+      DB_PASSWORD: naiwa_dev
+      JWT_SECRET: dev-secret-key-must-be-at-least-32-bytes-long-xxxx
+      WX_APPID: ${WX_APPID:-your_appid_here}
+      WX_APP_SECRET: ${WX_APP_SECRET:-your_secret_here}
+      WX_CLOUD_ENV: ${WX_CLOUD_ENV:-your-cloud-env-id}
+      TZ: Asia/Shanghai
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql_data:
