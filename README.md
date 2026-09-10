@@ -301,19 +301,6 @@ cd backend
 
 ---
 
-## 不做的事(明确边界)
-
-> 来自 [`docs/spec.md`](docs/spec.md) §不做的事。
-
-- ❌ 购物车批量结算 / 多商品合并下单
-- ❌ 真实微信支付 / 真实物流 / 物流轨迹
-- ❌ WebSocket 实时推送 / 已读未读 / 会话列表
-- ❌ 关注 / 点赞 / 粉丝 / 浏览足迹 / 降价通知
-- ❌ 多级分类 / 自定义标签 / Elasticsearch 分词搜索
-- ❌ 议价开关 / 追评 / 匿名评价 / 信用分计算
-- ❌ 发布前置审核 / 举报 / 申诉 / 独立管理后台页面
-
----
 
 ## 路线图
 
@@ -331,6 +318,3 @@ MIT License — 详情见 [LICENSE](LICENSE)。
 
 ---
 
-<p align="center">
-  Made with ❤️ for the campus — 期末 demo 用 🐸
-</p>
